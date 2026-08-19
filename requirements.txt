@@ -1,0 +1,8 @@
+rumps
+pynput
+sounddevice
+numpy
+faster-whisper
+anthropic
+requests
+python-dotenv
