@@ -8,7 +8,12 @@ A macOS menu bar voice assistant. Press a hotkey, talk, get a spoken reply from 
 ⌥Space toggle → record audio → Whisper (local STT) → Claude API or Ollama → macOS TTS
 ```
 
-The menu bar icon shows state: 🎙️ idle → 🔴 listening → 🧠 thinking → 🔊 speaking.
+Replies stream: Jarvis starts speaking the first sentence while the rest of the reply is still generating, so responses feel near-instant. Pressing the hotkey mid-reply interrupts both the speech and the generation.
+
+Opening the app shows a chat window with the conversation transcript, a
+status line, and a talk button (closing it just hides it — reopen from the
+Dock, or menu bar → Show Chat Window). The menu bar icon shows state:
+🎙️ idle → 🔴 listening → 🧠 thinking → 🔊 speaking.
 
 ## Setup
 
@@ -43,6 +48,26 @@ macOS will prompt for two permissions the first time:
 Then: press **⌥ Space**, speak, press **⌥ Space** again. Jarvis thinks, then talks. Press the hotkey while it's speaking to interrupt it.
 
 The first run downloads the Whisper model (~150 MB), so give it a minute.
+
+## Install as a desktop app
+
+To get a real double-clickable **Jarvis.app** (no terminal needed):
+
+```bash
+./build_app.sh          # installs to /Applications/Jarvis.app
+```
+
+Launch it from Spotlight or Finder like any app. Permissions (mic,
+accessibility for the hotkey) then attach to "Jarvis" itself. To have it
+start at login: System Settings → General → Login Items → + → Jarvis.
+
+The bundle (built with py2app in alias mode) symlinks back to this folder,
+so code edits apply on next launch without rebuilding — but rerun
+`./build_app.sh` if you move the project folder.
+
+**If Jarvis stops hearing you after a rebuild:** the new signature can
+silently invalidate the mic permission. Fix:
+`tccutil reset Microphone local.matt.jarvis`, relaunch, re-allow.
 
 ## Modes (menu bar → Mode)
 
@@ -79,6 +104,6 @@ Everything lives in `config.py`:
 
 1. **Better voice** — swap `tts.py` for ElevenLabs or OpenAI TTS (the `Speaker` class is designed to be replaced).
 2. **Wake word** ("Hey Jarvis") — add [openWakeWord](https://github.com/dscripka/openWakeWord) or Porcupine so you don't need the hotkey.
-3. **Streaming replies** — stream the LLM response and start speaking the first sentence while the rest generates; cuts perceived latency a lot.
-4. **Tools** — give Claude tool definitions (open apps, search web, read clipboard) so Jarvis can *do* things, not just talk.
+3. ~~**Streaming replies**~~ — ✅ done: replies stream and speech starts on the first sentence.
+4. ~~**Tools**~~ — ✅ done: Jarvis can open apps, read the clipboard, set volume, check weather, and look things up on Wikipedia (see `tools.py`; add your own by writing a function + schema there).
 5. **Live listener mode** — continuously transcribe system audio in chunks instead of toggle-based recording.
