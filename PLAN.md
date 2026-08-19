@@ -1,41 +1,42 @@
-# PLAN.md — Jarvis roadmap
+# Jarvis — Plan & Goals
 
-## Vision
-A Jarvis-style voice assistant on macOS I can toggle with a hotkey, that
-answers questions, spars with me in debate mode, and can listen to system
-audio (videos, calls) and suggest responses. Built to learn from — I read
-and understand every change.
+The vision: a user-friendly, everyday voice assistant (inspired by
+[this demo](https://www.youtube.com/watch?v=2od7tPirPYE)) that Matt can use
+for daily tasks — opening apps, asking about a video he's watching,
+analyzing a game on screen, responding to things on his computer.
 
-## Architecture (current)
-```
-⌥Space toggle → audio.py (record) → stt.py (Whisper) → brain.py (LLM) → tts.py (say)
-                          app.py = menu bar shell + state icon
-                          config.py = all knobs (modes, hotkey, provider)
-```
+## Core goals
 
-## Phases
+| Goal | Status | Notes |
+|---|---|---|
+| Voice loop (hotkey → whisper → LLM → TTS) | ✅ done | streaming, interruptible |
+| Desktop app + Command Center UI | ✅ done | py2app, WKWebView HUD |
+| Tools (apps, weather, wikipedia, clipboard, volume) | ✅ done | tools.py |
+| ElevenLabs voice | ✅ done | falls back to macOS say |
+| **Screen share / vision** — "what's on my screen?", analyze games & videos | ✅ done | look_at_screen tool → gemma3:4b (or Claude vision) |
+| **Browser actions** — open URLs, know the current tab, web search | ✅ done | open_url / get_browser_tab / search_web tools |
+| **Hands-free voice mode** — talk without the hotkey | ✅ done | VAD listener + "jarvis" wake word, toggle in UI/menu |
+| **Local file search** — find files by voice | ✅ done | Spotlight (mdfind) + read_text_file tools |
+| **Model / brain switching** — swap LLMs at runtime | ✅ done | menu + UI + by voice ("switch to Claude") |
 
-### Phase 1 — Solid foundation (now)
-Get the starter running reliably: mic input, all three modes, Claude API
-provider, BlackHole system-audio capture verified end to end.
+## Later / ideas
 
-### Phase 2 — Feels fast
-Latency is the whole game for a voice assistant.
-- Stream LLM responses; start speaking sentence 1 while the rest generates
-- Investigate smaller/faster Whisper settings vs. accuracy tradeoff
-- Interrupt handling polish (barge-in)
+- Voice picker UI (ElevenLabs voices, macOS voices)
+- Wake-word engine (openWakeWord) instead of transcript matching
+- Live listener mode: continuously transcribe system audio (BlackHole)
+- Deeper browser control (click/fill via AppleScript or extension)
+- Calendar / reminders / notes tools
+- Memory: persist conversation highlights across sessions
 
-### Phase 3 — Feels alive
-- Wake word ("Hey Jarvis") via openWakeWord — replace/augment the hotkey
-- Better voice: swap tts.py backend (ElevenLabs or similar), keep `say` as fallback
-- Floating overlay indicator (Siri-style orb) instead of just menu bar icon
+## Architecture map
 
-### Phase 4 — Actually does things
-- Tool calling: give the brain tools (open apps, read clipboard, web search)
-- Live listener mode: continuous chunked transcription of system audio
-  instead of toggle recording
-
-## Non-goals (for now)
-- Windows/Linux support
-- Packaging as a signed .app
-- Multi-user anything
+- `app.py` — rumps menu bar app, orchestration, state machine
+- `window.py` + `ui/index.html` — WKWebView Command Center dashboard
+- `audio.py` — recorder (rate-measuring, AirPods-safe)
+- `handsfree.py` — always-listening VAD mode with wake word
+- `stt.py` — faster-whisper transcription
+- `brain.py` — LLM agent loop (Ollama / Claude), runtime-switchable
+- `tools.py` — everything Jarvis can DO; add a function + schema to extend
+- `vision.py` — screen capture + multimodal model queries
+- `tts.py` — ElevenLabs / macOS speech with queue + interrupts
+- `config.py` — all knobs
