@@ -4,12 +4,21 @@
 # "anthropic" -> Claude API (put ANTHROPIC_API_KEY in a .env file)
 # "ollama"    -> local model via Ollama (install from ollama.com, then
 #                `ollama pull llama3.1`)
-PROVIDER = "anthropic"
+PROVIDER = "ollama"  # switch to "anthropic" anytime (needs ANTHROPIC_API_KEY in .env)
 MODEL = None  # None = provider default (claude-sonnet-4-6 / llama3.1)
 
 # --- Speech ---------------------------------------------------------------
 WHISPER_MODEL = "base.en"  # tiny.en | base.en | small.en
-TTS_VOICE = "Samantha"     # run `say -v '?'` to list available voices
+
+# Voice output. "elevenlabs" needs ELEVENLABS_API_KEY in .env and falls
+# back to the macOS voice on any API problem.
+TTS_PROVIDER = "elevenlabs"           # "elevenlabs" | "say"
+TTS_VOICE = "Samantha"                # macOS voice (`say -v '?'` lists them)
+# Premade "Adam" - free tier OK. The community voice Matt picked
+# (bfGb7JTLUnZebZRiFYyq, "Adam - AI Narrative Story Voice") needs a paid
+# ElevenLabs plan for API use; swap the ID back if you upgrade.
+ELEVENLABS_VOICE_ID = "pNInz6obpgDQGcFmaJgB"
+ELEVENLABS_MODEL = "eleven_flash_v2_5"        # fast+cheap; try eleven_multilingual_v2 for quality
 
 # --- Hotkey ---------------------------------------------------------------
 # pynput syntax. <alt> is the Option key on macOS.
@@ -18,6 +27,7 @@ HOTKEY_LABEL = "⌥ Space"
 
 # --- Conversation ---------------------------------------------------------
 MAX_HISTORY_TURNS = 12  # user+assistant pairs kept in context
+MAX_TOOL_ROUNDS = 5     # max tool-call rounds per turn (see tools.py)
 
 # --- Modes ------------------------------------------------------------------
 # Add your own! Each mode is just a system prompt.

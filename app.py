@@ -1,10 +1,10 @@
 """
-Jarvis - macOS menu bar voice assistant.
+Jarvis - macOS voice assistant.
 
 Flow:  hotkey toggle -> record -> whisper STT -> LLM (Claude or Ollama) -> TTS
 
-Menu bar icon doubles as the status indicator:
-  🎙️ idle   🔴 listening   🧠 thinking   🔊 speaking
+A chat window shows the conversation; the menu bar icon doubles as a
+status indicator:  🎙️ idle   🔴 listening   🧠 thinking   🔊 speaking
 """
 
 import threading
@@ -15,13 +15,16 @@ from pynput import keyboard
 from audio import Recorder, list_input_devices
 from stt import Transcriber
 from brain import Brain
-from tts import Speaker
+from tts import make_speaker
+from window import ChatWindow
 import config
+
+STATE_ICONS = {"idle": "🎙️", "listening": "🔴", "thinking": "🧠", "speaking": "🔊"}
 
 
 class JarvisApp(rumps.App):
     def __init__(self):
-        super().__init__("🎙️", quit_button="Quit Jarvis")
+        super().__init__("🎙️ Jarvis", quit_button="Quit Jarvis")
 
         self.recorder = Recorder(samplerate=16000)
         self.transcriber = Transcriber(model_size=config.WHISPER_MODEL)
@@ -30,11 +33,17 @@ class JarvisApp(rumps.App):
             model=config.MODEL,
             mode=config.DEFAULT_MODE,
         )
-        self.speaker = Speaker(voice=config.TTS_VOICE)
+        self.speaker = make_speaker()
 
         self.is_recording = False
         self.busy = False
         self.input_device = None  # None = default microphone
+
+        # --- Chat window ------------------------------------------------
+        self.window = ChatWindow.alloc().init().setup(on_talk=self.toggle)
+        self.brain.on_tool = lambda name, result: self.window.add_note(
+            f"🔧 {name}: {result[:120]}"
+        )
 
         # --- Menu -----------------------------------------------------
         self.mode_items = {}
@@ -58,6 +67,7 @@ class JarvisApp(rumps.App):
                 f"Toggle Listening ({config.HOTKEY_LABEL})",
                 callback=lambda _: self.toggle(),
             ),
+            rumps.MenuItem("Show Chat Window", callback=lambda _: self.window.show()),
             None,
             ("Mode", mode_menu),
             ("Audio Source", source_menu),
@@ -69,6 +79,13 @@ class JarvisApp(rumps.App):
         self.hotkeys = keyboard.GlobalHotKeys({config.HOTKEY: self.toggle})
         self.hotkeys.start()
 
+        # Audible startup confirmation.
+        self.speaker.feed("Jarvis is ready.")
+
+    def set_state(self, state: str):
+        self.title = f"{STATE_ICONS[state]} Jarvis"
+        self.window.set_state(state)
+
     # --- Menu callbacks ------------------------------------------------
 
     def set_mode(self, sender):
@@ -76,7 +93,7 @@ class JarvisApp(rumps.App):
             item.state = item is sender
             if item is sender:
                 self.brain.set_mode(name)
-        rumps.notification("Jarvis", "Mode changed", f"Now in {sender.title} mode")
+        self.window.add_note(f"Mode: {sender.title}")
 
     def set_source(self, sender):
         for label, item in self.source_items.items():
@@ -101,24 +118,30 @@ class JarvisApp(rumps.App):
 
     def clear_history(self, _):
         self.brain.clear()
-        rumps.notification("Jarvis", "Conversation cleared", "")
+        self.window.add_note("Conversation cleared")
 
     # --- Core loop -------------------------------------------------------
 
     def toggle(self):
-        """Hotkey / menu entry point. Start or stop a listening session."""
+        """Hotkey / button / menu entry point. Start or stop listening."""
         if self.busy:
-            # Pressing the hotkey while Jarvis is speaking interrupts it.
+            # Interrupt: cancel the in-flight generation and any speech.
+            self.brain.cancel()
             self.speaker.stop()
             return
         if not self.is_recording:
             self.is_recording = True
-            self.title = "🔴"
+            self.set_state("listening")
             self.recorder.start(device=self.input_device)
         else:
             self.is_recording = False
-            self.title = "🧠"
+            self.set_state("thinking")
             audio = self.recorder.stop()
+            peak = float(abs(audio).max()) if audio.size else 0.0
+            self.window.add_note(
+                f"debug: {audio.size} samples, {audio.size / 16000:.1f}s, "
+                f"peak {peak:.4f}, rate {self.recorder._native_rate:.0f}"
+            )
             threading.Thread(target=self.process, args=(audio,), daemon=True).start()
 
     def process(self, audio):
@@ -126,22 +149,37 @@ class JarvisApp(rumps.App):
         try:
             text = self.transcriber.transcribe(audio)
             if not text.strip():
-                self.title = "🎙️"
+                self.window.add_note("(heard nothing)")
                 return
 
             print(f"[you] {text}")
-            reply = self.brain.respond(text)
-            print(f"[jarvis] {reply}")
-
-            self.title = "🔊"
-            self.speaker.say(reply)
+            self.window.add_user(text)
+            # Stream: start speaking the first sentence while the rest
+            # of the reply is still generating.
+            sentences = []
+            for sentence in self.brain.respond_stream(text):
+                if not sentences:
+                    self.set_state("speaking")
+                sentences.append(sentence)
+                self.window.add_reply(sentence)
+                self.speaker.feed(sentence)
+            self.speaker.wait()
+            print(f"[jarvis] {' '.join(sentences)}")
         except Exception as e:
             print(f"[error] {e}")
-            rumps.notification("Jarvis", "Error", str(e))
+            self.window.add_note(f"Error: {e}")
         finally:
-            self.title = "🎙️"
+            self.set_state("idle")
             self.busy = False
 
 
 if __name__ == "__main__":
-    JarvisApp().run()
+    # Regular app: Dock icon + windows. (The menu bar item still works.)
+    from AppKit import NSApplication, NSApplicationActivationPolicyRegular
+
+    NSApplication.sharedApplication().setActivationPolicy_(
+        NSApplicationActivationPolicyRegular
+    )
+    app = JarvisApp()
+    app.window.show()
+    app.run()
