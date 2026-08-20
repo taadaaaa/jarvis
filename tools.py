@@ -9,12 +9,17 @@ Tool results are returned as strings and fed back to the model, which then
 answers out loud. Keep results short: they end up in the context window.
 """
 
+import os
+import re
 import subprocess
 
 import requests
 
 # Wikipedia rejects requests without a descriptive User-Agent.
 _HEADERS = {"User-Agent": "Jarvis-voice-assistant/1.0 (personal project)"}
+
+# Set by app.py so the switch_brain tool can reconfigure the live Brain.
+SWITCH_BRAIN_HOOK = None
 
 # WMO weather interpretation codes (open-meteo uses these)
 _WEATHER_CODES = {
@@ -109,7 +114,193 @@ def search_wikipedia(query: str) -> str:
     return f"Wikipedia ({page.get('title', key)}): {extract[:1500]}"
 
 
+def look_at_screen(question: str) -> str:
+    import vision
+
+    return vision.describe_screen(question)
+
+
+def open_url(url: str) -> str:
+    if not re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*://", url):
+        url = "https://" + url
+    r = subprocess.run(["open", url], capture_output=True, text=True, timeout=10)
+    if r.returncode == 0:
+        return f"Opened {url} in the browser."
+    return f"Could not open {url}: {r.stderr.strip() or 'unknown error'}"
+
+
+def get_browser_tab() -> str:
+    for app_name, script in (
+        (
+            "Google Chrome",
+            'tell application "Google Chrome" to get {title, URL} of active tab of front window',
+        ),
+        (
+            "Safari",
+            'tell application "Safari" to get {name, URL} of front document',
+        ),
+    ):
+        try:
+            r = subprocess.run(
+                ["osascript", "-e", script],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if r.returncode == 0 and r.stdout.strip():
+                title, _, url = r.stdout.strip().rpartition(", ")
+                return f"Current browser tab: {title} — {url}"
+        except Exception:
+            continue
+    return "Could not find an open browser tab (is Chrome or Safari running?)."
+
+
+def search_web(query: str) -> str:
+    try:
+        r = requests.get(
+            "https://lite.duckduckgo.com/lite/",
+            params={"q": query},
+            headers=_HEADERS,
+            timeout=10,
+        )
+        r.raise_for_status()
+        hits = re.findall(
+            r'<a rel="nofollow" href="([^"]+)"[^>]*>(.*?)</a>', r.text
+        )
+        lines = []
+        for url, title in hits[:5]:
+            title = re.sub(r"<[^>]+>", "", title).strip()
+            if title:
+                lines.append(f"{title} — {url}")
+        return "\n".join(lines) or "No web results found."
+    except Exception as e:
+        return f"Web search failed: {e}"
+
+
+def search_files(query: str, limit: int = 8) -> str:
+    def _mdfind(args):
+        r = subprocess.run(
+            ["mdfind"] + args, capture_output=True, text=True, timeout=15
+        )
+        return [p for p in r.stdout.splitlines() if p.strip()]
+
+    paths = _mdfind(["-name", query]) or _mdfind([query])
+    if not paths:
+        return f"No files found matching {query}."
+    lines = [
+        f"{os.path.basename(p)} — {p}" for p in paths[: int(limit)]
+    ]
+    return "\n".join(lines)
+
+
+def read_text_file(path: str) -> str:
+    path = os.path.expanduser(path)
+    if not os.path.isfile(path):
+        return f"No file found at {path}."
+    with open(path, "rb") as fp:
+        head = fp.read(1024)
+    if b"\x00" in head:
+        return f"{os.path.basename(path)} is not a text file I can read."
+    with open(path, "r", errors="replace") as fp:
+        return fp.read(3000)
+
+
+def switch_brain(target: str) -> str:
+    if SWITCH_BRAIN_HOOK is None:
+        return "Brain switching is not wired up."
+    return str(SWITCH_BRAIN_HOOK(target))
+
+
 DEFINITIONS = [
+    {
+        "name": "look_at_screen",
+        "description": (
+            "Look at the user's screen and answer a question about what is "
+            "visible. Use whenever the user asks about anything on screen: "
+            "'what's on my screen', a video they're watching, a game, an "
+            "error dialog, a document, a website."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "question": {
+                    "type": "string",
+                    "description": "What to figure out from the screen",
+                }
+            },
+            "required": ["question"],
+        },
+    },
+    {
+        "name": "open_url",
+        "description": "Open a web page in the user's default browser.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"url": {"type": "string", "description": "URL to open"}},
+            "required": ["url"],
+        },
+    },
+    {
+        "name": "get_browser_tab",
+        "description": (
+            "Get the title and URL of the browser tab the user currently has "
+            "open (Chrome or Safari). Use when they mention 'this page', "
+            "'this video', or 'what I'm looking at' in the browser."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "search_web",
+        "description": "Search the web and return the top result titles and links.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Search query"}
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "search_files",
+        "description": (
+            "Search the user's Mac for files by name or content (Spotlight). "
+            "Use when they ask to find a file, document, download, etc."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "File name or keywords"},
+                "limit": {"type": "integer", "description": "Max results (default 8)"},
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "read_text_file",
+        "description": "Read the contents of a text file at a given path.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Absolute or ~ path"}
+            },
+            "required": ["path"],
+        },
+    },
+    {
+        "name": "switch_brain",
+        "description": (
+            "Switch which AI model powers Jarvis. Target can be 'claude', "
+            "'ollama', or an Ollama model name like 'llama3.1' or "
+            "'gemma3:4b'. Use when the user asks to switch models/brains."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "target": {"type": "string", "description": "Provider or model name"}
+            },
+            "required": ["target"],
+        },
+    },
     {
         "name": "open_app",
         "description": "Open a macOS application by name, e.g. Safari, Spotify, Notes, Calculator.",
@@ -167,6 +358,13 @@ _FUNCS = {
     "set_volume": set_volume,
     "get_weather": get_weather,
     "search_wikipedia": search_wikipedia,
+    "look_at_screen": look_at_screen,
+    "open_url": open_url,
+    "get_browser_tab": get_browser_tab,
+    "search_web": search_web,
+    "search_files": search_files,
+    "read_text_file": read_text_file,
+    "switch_brain": switch_brain,
 }
 
 

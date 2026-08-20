@@ -7,6 +7,16 @@
 PROVIDER = "ollama"  # switch to "anthropic" anytime (needs ANTHROPIC_API_KEY in .env)
 MODEL = None  # None = provider default (claude-sonnet-4-6 / llama3.1)
 
+# Multimodal model used by the look_at_screen tool (Ollama). If an
+# ANTHROPIC_API_KEY is set, Claude vision is used instead.
+VISION_MODEL = "gemma3:4b"
+
+# --- Hands-free mode --------------------------------------------------------
+# When hands-free is on, Jarvis listens continuously and responds to any
+# utterance containing the wake word. Set WAKE_WORD = None to respond to
+# everything it hears (not recommended with videos/music playing).
+WAKE_WORD = "jarvis"
+
 # --- Speech ---------------------------------------------------------------
 WHISPER_MODEL = "base.en"  # tiny.en | base.en | small.en
 

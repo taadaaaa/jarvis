@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  :root {
+    --bg: #030b16;
+    --bg2: #04121f;
+    --panel: rgba(6, 24, 44, 0.72);
+    --panel2: rgba(10, 34, 60, 0.55);
+    --line: rgba(0, 229, 255, 0.22);
+    --line-dim: rgba(0, 229, 255, 0.10);
+    --cyan: #00e5ff;
+    --cyan-dim: #2aa4c0;
+    --text: #d2ecf7;
+    --dim: #5f89a6;
+    --amber: #ffc94d;
+    --green: #3dffa8;
+    --blue: #4da3ff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    background:
+      radial-gradient(1200px 600px at 50% -10%, #0a2440 0%, transparent 60%),
+      radial-gradient(900px 500px at 85% 110%, #071d33 0%, transparent 55%),
+      var(--bg);
+    color: var(--text);
+    font-family: -apple-system, "Helvetica Neue", sans-serif;
+    display: grid;
+    grid-template-rows: 54px 1fr 64px;
+    letter-spacing: 0.02em;
+  }
+  .caps { text-transform: uppercase; letter-spacing: 0.18em; }
+  .mono { font-family: "SF Mono", Menlo, monospace; }
+
+  /* ---------- top bar ---------- */
+  #topbar {
+    display: flex; align-items: center; gap: 18px;
+    padding: 0 18px; border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, rgba(0,229,255,0.06), transparent);
+  }
+  #logo { display: flex; align-items: center; gap: 10px; }
+  #logo .ring {
+    width: 28px; height: 28px; border-radius: 50%;
+    border: 2px solid var(--cyan); position: relative;
+    box-shadow: 0 0 12px rgba(0,229,255,.5), inset 0 0 8px rgba(0,229,255,.3);
+  }
+  #logo .ring::after {
+    content: ""; position: absolute; inset: 7px; border-radius: 50%;
+    background: var(--cyan); box-shadow: 0 0 8px var(--cyan);
+  }
+  #logo .name { font-size: 17px; font-weight: 700; letter-spacing: 0.34em; color: #eaffff; }
+  #logo .sub { font-size: 8px; color: var(--cyan-dim); letter-spacing: 0.28em; margin-top: 2px; }
+  .pill {
+    border: 1px solid var(--line); border-radius: 20px;
+    padding: 5px 14px; font-size: 10px; color: var(--dim);
+    background: var(--panel2); display: flex; align-items: center; gap: 8px;
+  }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px var(--green); }
+  #clockbox { margin-left: auto; margin-right: auto; text-align: center; position: absolute; left: 50%; transform: translateX(-50%); }
+  #date { font-size: 10px; color: var(--dim); }
+  #clock { font-size: 21px; font-weight: 700; color: var(--cyan); text-shadow: 0 0 14px rgba(0,229,255,.6); }
+  #topright { margin-left: auto; display: flex; gap: 10px; align-items: center; }
+
+  /* ---------- main grid ---------- */
+  #main {
+    display: grid; grid-template-columns: 200px 1fr 320px;
+    gap: 12px; padding: 12px; min-height: 0;
+  }
+  .panel {
+    border: 1px solid var(--line); border-radius: 8px;
+    background: var(--panel); position: relative;
+    box-shadow: 0 0 18px rgba(0, 40, 70, 0.35);
+    display: flex; flex-direction: column; min-height: 0;
+  }
+  .panel::before, .panel::after {
+    content: ""; position: absolute; width: 14px; height: 14px; pointer-events: none;
+  }
+  .panel::before { top: -1px; left: -1px; border-top: 2px solid var(--cyan); border-left: 2px solid var(--cyan); border-radius: 8px 0 0 0; }
+  .panel::after { bottom: -1px; right: -1px; border-bottom: 2px solid var(--cyan); border-right: 2px solid var(--cyan); border-radius: 0 0 8px 0; }
+  .ptitle {
+    font-size: 10px; color: var(--cyan); padding: 10px 12px 8px;
+    border-bottom: 1px solid var(--line-dim); flex-shrink: 0;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .ptitle .live { margin-left: auto; color: var(--green); font-size: 9px; }
+
+  /* ---------- sidebar ---------- */
+  #sidebar { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+  #nav { flex: 1; overflow: hidden; }
+  .navitem {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 14px; font-size: 11.5px; color: var(--dim); cursor: default;
+  }
+  .navitem.active { color: #eaffff; background: linear-gradient(90deg, rgba(0,229,255,0.12), transparent); border-left: 2px solid var(--cyan); }
+  .navitem .ico { width: 14px; text-align: center; color: var(--cyan-dim); }
+  .navitem .count { margin-left: auto; font-size: 9px; background: rgba(0,229,255,.12); border: 1px solid var(--line); border-radius: 9px; padding: 1px 7px; color: var(--cyan); }
+
+  /* voice status */
+  #voicepanel { padding-bottom: 14px; }
+  #bars { display: flex; align-items: center; justify-content: center; gap: 2px; height: 34px; margin: 10px 0 4px; }
+  #bars i {
+    width: 3px; background: var(--cyan); border-radius: 2px; height: 6px; opacity: .75;
+    box-shadow: 0 0 5px rgba(0,229,255,.6);
+  }
+  body.listening #bars i, body.speaking #bars i { animation: eq 0.7s ease-in-out infinite alternate; }
+  @keyframes eq { from { height: 4px; } to { height: 26px; } }
+  #vstate { text-align: center; font-size: 10px; color: var(--dim); margin-bottom: 10px; }
+  #micwrap { display: flex; justify-content: center; }
+  #mic {
+    width: 74px; height: 74px; border-radius: 50%; cursor: pointer;
+    border: 2px solid var(--cyan); position: relative;
+    background: radial-gradient(circle at 50% 45%, rgba(0,229,255,.25), rgba(0,40,70,.4));
+    box-shadow: 0 0 24px rgba(0,229,255,.35), inset 0 0 18px rgba(0,229,255,.2);
+    display: flex; align-items: center; justify-content: center; font-size: 26px;
+    transition: box-shadow .3s;
+  }
+  body.listening #mic { box-shadow: 0 0 40px rgba(255,80,80,.6), inset 0 0 18px rgba(255,80,80,.3); border-color: #ff6b6b; }
+  body.thinking #mic { box-shadow: 0 0 40px rgba(255,201,77,.5), inset 0 0 18px rgba(255,201,77,.25); border-color: var(--amber); }
+  body.speaking #mic { box-shadow: 0 0 40px rgba(61,255,168,.5), inset 0 0 18px rgba(61,255,168,.25); border-color: var(--green); }
+  #miclabel { text-align: center; font-size: 9px; color: var(--dim); margin-top: 8px; }
+
+  /* ---------- center column ---------- */
+  #center { display: grid; grid-template-rows: 1fr 190px; gap: 12px; min-height: 0; }
+  #corepanel { position: relative; overflow: hidden; }
+  #globe { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #coretext {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; pointer-events: none;
+  }
+  #coretext .big {
+    font-size: 44px; font-weight: 700; letter-spacing: 0.45em; color: #eaffff;
+    text-shadow: 0 0 24px rgba(0,229,255,.8), 0 0 60px rgba(0,229,255,.4);
+    padding-left: 0.45em;
+  }
+  #coretext .small { font-size: 11px; color: var(--cyan-dim); letter-spacing: 0.5em; margin-top: 10px; padding-left: 0.5em; }
+  #coretext .ver { font-size: 9px; color: var(--dim); margin-top: 6px; }
+
+  #bottomrow { display: grid; grid-template-columns: 1fr 1.2fr; gap: 12px; min-height: 0; }
+  .stats { display: flex; align-items: center; justify-content: space-around; flex: 1; }
+  .ringstat { text-align: center; }
+  .ringstat svg { transform: rotate(-90deg); }
+  .ringstat .val { font-size: 13px; font-weight: 700; color: #eaffff; margin-top: -46px; }
+  .ringstat .lbl { font-size: 9px; color: var(--dim); margin-top: 30px; }
+  #llmgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px 12px; overflow: hidden; flex: 1; align-content: start; }
+  .llmcard {
+    border: 1px solid var(--line-dim); border-radius: 6px; background: var(--panel2);
+    padding: 7px 10px; font-size: 10.5px; display: flex; flex-direction: column; gap: 2px;
+  }
+  .llmcard b { color: #eaffff; font-weight: 600; }
+  .llmcard span { font-size: 9px; }
+  .on { color: var(--green); } .off { color: var(--dim); }
+
+  /* ---------- right column ---------- */
+  #right { display: grid; grid-template-rows: 1fr auto; gap: 12px; min-height: 0; }
+  #feed { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px; scrollbar-width: thin; }
+  #feed::-webkit-scrollbar { width: 4px; }
+  #feed::-webkit-scrollbar-thumb { background: var(--line); border-radius: 2px; }
+  .item {
+    border: 1px solid var(--line-dim); border-left: 3px solid var(--cyan);
+    background: var(--panel2); border-radius: 6px; padding: 8px 10px;
+    font-size: 11.5px; line-height: 1.45; user-select: text; -webkit-user-select: text;
+  }
+  .item .who { font-size: 9px; letter-spacing: .18em; text-transform: uppercase; color: var(--cyan-dim); margin-bottom: 3px; }
+  .item.user { border-left-color: var(--blue); }
+  .item.user .who { color: var(--blue); }
+  .item.jarvis { border-left-color: var(--cyan); }
+  .item.tool { border-left-color: var(--amber); font-size: 10px; color: var(--dim); }
+  .item.tool .who { color: var(--amber); }
+  .item.note { border-left-color: rgba(95,137,166,.5); font-size: 10px; color: var(--dim); }
+  #quick { padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+  .qbtn {
+    border: 1px solid var(--line); border-radius: 6px; background: var(--panel2);
+    color: var(--text); font-size: 11px; padding: 9px 12px; cursor: pointer;
+    display: flex; align-items: center; gap: 10px; transition: background .2s, box-shadow .2s;
+  }
+  .qbtn:hover { background: rgba(0,229,255,.12); box-shadow: 0 0 10px rgba(0,229,255,.25); }
+  .qbtn .ico { color: var(--cyan); }
+
+  /* ---------- bottom bar ---------- */
+  #bottombar {
+    border-top: 1px solid var(--line); display: flex; align-items: center;
+    padding: 0 20px; gap: 20px;
+    background: linear-gradient(0deg, rgba(0,229,255,0.05), transparent);
+  }
+  .dots { flex: 1; height: 4px; background-image: radial-gradient(circle, var(--line) 1.5px, transparent 1.6px); background-size: 14px 4px; opacity: .8; }
+  #talk {
+    border: 2px solid var(--cyan); border-radius: 32px; cursor: pointer;
+    background: radial-gradient(circle at 50% 0%, rgba(0,229,255,.28), rgba(2,16,30,.9));
+    box-shadow: 0 0 28px rgba(0,229,255,.4), inset 0 0 14px rgba(0,229,255,.15);
+    padding: 8px 40px; text-align: center; transition: box-shadow .3s, border-color .3s;
+  }
+  #talk .t1 { font-size: 13px; font-weight: 700; letter-spacing: .22em; color: var(--cyan); text-shadow: 0 0 10px rgba(0,229,255,.7); }
+  #talk .t2 { font-size: 9px; color: var(--dim); margin-top: 2px; }
+  body.listening #talk { border-color: #ff6b6b; box-shadow: 0 0 34px rgba(255,80,80,.5); }
+  body.listening #talk .t1 { color: #ff9d9d; text-shadow: 0 0 10px rgba(255,80,80,.7); }
+  body.thinking #talk { border-color: var(--amber); box-shadow: 0 0 34px rgba(255,201,77,.45); }
+  body.thinking #talk .t1 { color: var(--amber); }
+  body.speaking #talk { border-color: var(--green); box-shadow: 0 0 34px rgba(61,255,168,.45); }
+  body.speaking #talk .t1 { color: var(--green); }
+</style>
+</head>
+<body class="idle">
+
+<div id="topbar">
+  <div id="logo">
+    <div class="ring"></div>
+    <div><div class="name">JARVIS</div><div class="sub caps">Command Center</div></div>
+  </div>
+  <div class="pill caps"><span class="dot"></span><span style="color:var(--text)">System Status</span><span id="sysstatus" style="color:var(--green)">● Optimal</span></div>
+  <div id="clockbox"><div id="date" class="caps">—</div><div id="clock" class="mono">--:--:--</div></div>
+  <div id="topright">
+    <div class="pill caps" id="modepill">Mode: Assistant</div>
+    <div class="pill"><span class="dot"></span><span id="operator">Operator</span></div>
+  </div>
+</div>
+
+<div id="main">
+  <div id="sidebar">
+    <div class="panel" id="nav">
+      <div class="ptitle caps">Navigation</div>
+      <div class="navitem active"><span class="ico">▣</span>Command Center</div>
+      <div class="navitem"><span class="ico">◉</span>AI Core</div>
+      <div class="navitem"><span class="ico">☰</span>Conversations<span class="count" id="convcount">0</span></div>
+      <div class="navitem"><span class="ico">⚒</span>Tools &amp; Skills<span class="count">5</span></div>
+      <div class="navitem"><span class="ico">▤</span>Memory</div>
+      <div class="navitem"><span class="ico">◈</span>Knowledge Base</div>
+      <div class="navitem"><span class="ico">⟳</span>Workflows</div>
+    </div>
+    <div class="panel" id="voicepanel">
+      <div class="ptitle caps">Voice Status</div>
+      <div id="bars"></div>
+      <div id="vstate">Idle</div>
+      <div id="micwrap"><div id="mic" onclick="post('toggle')">🎙</div></div>
+      <div id="miclabel" class="caps">Tap to Speak</div>
+      <button class="qbtn" id="hfbtn" style="margin:12px 12px 0" onclick="post('handsfree')">
+        <span class="ico">◎</span><span id="hflabel">Hands-Free: Off</span>
+      </button>
+    </div>
+  </div>
+
+  <div id="center">
+    <div class="panel" id="corepanel">
+      <div class="ptitle caps">AI Core Overview<span class="live">● LIVE</span></div>
+      <canvas id="globe"></canvas>
+      <div id="coretext">
+        <div class="big">JARVIS</div>
+        <div class="small caps">AI Core</div>
+        <div class="ver mono">v3.0.0</div>
+      </div>
+    </div>
+    <div id="bottomrow">
+      <div class="panel">
+        <div class="ptitle caps">System Monitor</div>
+        <div class="stats">
+          <div class="ringstat" id="stat-cpu"></div>
+          <div class="ringstat" id="stat-ram"></div>
+          <div class="ringstat" id="stat-disk"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="ptitle caps">Core Systems</div>
+        <div id="llmgrid"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="right">
+    <div class="panel">
+      <div class="ptitle caps">Live Intelligence Feed<span class="live">● LIVE</span></div>
+      <div id="feed"></div>
+    </div>
+    <div class="panel">
+      <div class="ptitle caps">Quick Commands</div>
+      <div id="quick">
+        <button class="qbtn" onclick="post('toggle')"><span class="ico">▶</span>Start Voice Chat</button>
+        <button class="qbtn" onclick="post('handsfree')"><span class="ico">◎</span>Toggle Hands-Free</button>
+        <button class="qbtn" onclick="post('interrupt')"><span class="ico">■</span>Interrupt</button>
+        <button class="qbtn" onclick="post('clear')"><span class="ico">✕</span>Clear Conversation</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="bottombar">
+  <div class="dots"></div>
+  <div id="talk" onclick="post('toggle')">
+    <div class="t1 caps" id="talkline">Talk to Jarvis</div>
+    <div class="t2" id="talksub">Tap to speak, or press ⌥ Space</div>
+  </div>
+  <div class="dots"></div>
+</div>
+
+<script>
+"use strict";
+function post(cmd, target) {
+  try { window.webkit.messageHandlers.jarvis.postMessage({cmd: cmd, target: target || null}); } catch (e) {}
+}
+
+/* ---------- clock ---------- */
+function tick() {
+  const now = new Date();
+  const days = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  document.getElementById("date").textContent =
+    days[now.getDay()] + ", " + now.getDate() + " " + months[now.getMonth()] + " " + now.getFullYear();
+  let h = now.getHours(); const ap = h >= 12 ? "pm" : "am"; h = h % 12 || 12;
+  const mm = String(now.getMinutes()).padStart(2, "0");
+  const ss = String(now.getSeconds()).padStart(2, "0");
+  document.getElementById("clock").textContent = h + ":" + mm + ":" + ss + " " + ap;
+}
+setInterval(tick, 1000); tick();
+
+/* ---------- eq bars ---------- */
+const bars = document.getElementById("bars");
+for (let i = 0; i < 24; i++) {
+  const b = document.createElement("i");
+  b.style.animationDelay = (Math.sin(i * 1.7) * 0.35).toFixed(2) + "s";
+  b.style.height = (4 + 14 * Math.abs(Math.sin(i * 0.55))) + "px";
+  bars.appendChild(b);
+}
+
+/* ---------- state ---------- */
+const STATES = {
+  idle:      ["Idle", "Talk to Jarvis", "Tap to speak, or press ⌥ Space"],
+  listening: ["Listening…", "Listening…", "Tap again when you're done"],
+  thinking:  ["Thinking…", "Thinking…", "Tap to interrupt"],
+  speaking:  ["Speaking", "Speaking…", "Tap to interrupt"],
+};
+const J = {};
+let handsfree = false;
+J.setState = function (s) {
+  document.body.className = s + (handsfree ? " handsfree" : "");
+  const st = STATES[s] || STATES.idle;
+  document.getElementById("vstate").textContent =
+    (s === "idle" && handsfree) ? "Listening for “Jarvis”…" : st[0];
+  document.getElementById("talkline").textContent = st[1];
+  document.getElementById("talksub").textContent =
+    (s === "idle" && handsfree) ? "Hands-free: just start talking" : st[2];
+  document.body.dataset.state = s;
+};
+J.setHandsfree = function (on) {
+  handsfree = !!on;
+  document.getElementById("hflabel").textContent = "Hands-Free: " + (handsfree ? "On" : "Off");
+  document.getElementById("hfbtn").style.borderColor = handsfree ? "var(--green)" : "var(--line)";
+  document.getElementById("hfbtn").style.boxShadow = handsfree ? "0 0 12px rgba(61,255,168,.35)" : "none";
+  J.setState(document.body.dataset.state || "idle");
+};
+
+/* ---------- feed ---------- */
+const feed = document.getElementById("feed");
+let openReply = null;
+let convCount = 0;
+function addItem(cls, who, text) {
+  const d = document.createElement("div");
+  d.className = "item " + cls;
+  const w = document.createElement("div"); w.className = "who"; w.textContent = who;
+  const t = document.createElement("div"); t.className = "txt"; t.textContent = text;
+  d.appendChild(w); d.appendChild(t);
+  feed.appendChild(d);
+  feed.scrollTop = feed.scrollHeight;
+  return t;
+}
+J.addUser = function (text) {
+  openReply = null;
+  addItem("user", "You", text);
+  convCount++;
+  document.getElementById("convcount").textContent = convCount;
+};
+J.addReply = function (sentence) {
+  if (!openReply) openReply = addItem("jarvis", "Jarvis", sentence);
+  else openReply.textContent += " " + sentence;
+  feed.scrollTop = feed.scrollHeight;
+};
+J.addTool = function (text) { openReply = null; addItem("tool", "Tool", text); };
+J.addNote = function (text) { openReply = null; addItem("note", "System", text); };
+
+/* ---------- system stats rings ---------- */
+function ring(el, label, pct) {
+  const r = 26, c = 2 * Math.PI * r;
+  el.innerHTML =
+    '<svg width="64" height="64"><circle cx="32" cy="32" r="' + r + '" fill="none" stroke="rgba(0,229,255,.12)" stroke-width="5"/>' +
+    '<circle cx="32" cy="32" r="' + r + '" fill="none" stroke="#00e5ff" stroke-width="5" stroke-linecap="round" ' +
+    'stroke-dasharray="' + c + '" stroke-dashoffset="' + (c * (1 - pct / 100)) + '" style="filter: drop-shadow(0 0 4px rgba(0,229,255,.8))"/></svg>' +
+    '<div class="val mono">' + Math.round(pct) + '%</div><div class="lbl caps">' + label + '</div>';
+}
+J.setStats = function (s) {
+  ring(document.getElementById("stat-cpu"), "CPU", s.cpu);
+  ring(document.getElementById("stat-ram"), "RAM", s.ram);
+  ring(document.getElementById("stat-disk"), "Disk", s.disk);
+};
+J.setStats({cpu: 0, ram: 0, disk: 0});
+
+/* ---------- core systems panel ---------- */
+J.setInfo = function (info) {
+  if (Array.isArray(info.cards)) {
+    const g = document.getElementById("llmgrid");
+    g.innerHTML = "";
+    info.cards.forEach(function (c) {
+      const d = document.createElement("div");
+      d.className = "llmcard";
+      d.innerHTML = "<b>" + c.name + (c.active ? " ◈" : "") + "</b><span class='" + (c.on ? "on" : "off") + "'>" + c.status + "</span>";
+      if (c.target) {
+        d.style.cursor = "pointer";
+        if (c.active) { d.style.borderColor = "var(--cyan)"; d.style.boxShadow = "0 0 10px rgba(0,229,255,.25)"; }
+        d.onclick = function () { post("brain", c.target); };
+      }
+      g.appendChild(d);
+    });
+  }
+  if (info.mode) document.getElementById("modepill").textContent = "Mode: " + info.mode;
+  if (info.operator) document.getElementById("operator").textContent = info.operator;
+};
+
+/* ---------- globe ---------- */
+const canvas = document.getElementById("globe");
+const ctx = canvas.getContext("2d");
+const PTS = [];
+for (let i = 0; i < 340; i++) {
+  const th = Math.acos(2 * Math.random() - 1), ph = Math.random() * Math.PI * 2;
+  PTS.push([Math.sin(th) * Math.cos(ph), Math.cos(th), Math.sin(th) * Math.sin(ph)]);
+}
+let rot = 0;
+function drawGlobe() {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (canvas.width !== w * 2) { canvas.width = w * 2; canvas.height = h * 2; ctx.scale(2, 2); }
+  ctx.clearRect(0, 0, w, h);
+  const cx = w / 2, cy = h / 2, R = Math.min(w, h) * 0.36;
+  rot += document.body.className === "idle" ? 0.004 : 0.014;
+  // orbit rings
+  ctx.strokeStyle = "rgba(0,229,255,0.12)";
+  for (let k = 1; k <= 3; k++) {
+    ctx.beginPath(); ctx.ellipse(cx, cy, R * (1 + k * 0.14), R * 0.32 * (1 + k * 0.1), -0.4 + k * 0.13, 0, Math.PI * 2); ctx.stroke();
+  }
+  for (const p of PTS) {
+    const x = p[0] * Math.cos(rot) + p[2] * Math.sin(rot);
+    const z = -p[0] * Math.sin(rot) + p[2] * Math.cos(rot);
+    const sx = cx + x * R, sy = cy + p[1] * R * 0.92;
+    const a = 0.15 + 0.55 * (z + 1) / 2, s = 0.6 + 1.2 * (z + 1) / 2;
+    ctx.fillStyle = "rgba(0,229,255," + a.toFixed(2) + ")";
+    ctx.beginPath(); ctx.arc(sx, sy, s, 0, Math.PI * 2); ctx.fill();
+  }
+  // glow core
+  const grad = ctx.createRadialGradient(cx, cy, R * 0.1, cx, cy, R * 1.15);
+  grad.addColorStop(0, "rgba(0,229,255,0.10)");
+  grad.addColorStop(1, "rgba(0,229,255,0)");
+  ctx.fillStyle = grad;
+  ctx.beginPath(); ctx.arc(cx, cy, R * 1.15, 0, Math.PI * 2); ctx.fill();
+  requestAnimationFrame(drawGlobe);
+}
+requestAnimationFrame(drawGlobe);
+</script>
+</body>
+</html>
